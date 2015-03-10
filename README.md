@@ -3,7 +3,7 @@ Amazon Redshift output plugin for Fluentd
 
 ## Overview
 
-Amazon Redshift output plugin uploads event logs to an Amazon Redshift Cluster. Supportted data formats are csv, tsv and json. An S3 bucket and a Redshift Cluster are required to use this plugin.
+Amazon Redshift output plugin uploads event logs to an Amazon Redshift Cluster. Supported data formats are csv, tsv and json. An S3 bucket and a Redshift Cluster are required to use this plugin.
 
 ## Installation
 
@@ -76,13 +76,13 @@ Example (watch and upload json formatted apache log):
         buffer_path /var/log/fluent/redshift
         flush_interval 15m
         buffer_chunk_limit 1g
-    <match>
+    </match>
 
 + `type` (required) : The value must be `redshift`.
 
 + `aws_key_id` (required) : AWS access key id to access s3 bucket.
 
-+ `aws_sec_key` (required) : AWS securet key id to access s3 bucket.
++ `aws_sec_key` (required) : AWS secret key id to access s3 bucket.
 
 + `s3_bucket` (required) : s3 bucket name. S3 bucket must be same as the region of your Redshift cluster.
 
