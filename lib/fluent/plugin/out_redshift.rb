@@ -171,6 +171,7 @@ class RedshiftOutput < BufferedOutput
     begin
       gzw = Zlib::GzipWriter.new(dst_file)
       chunk.msgpack_each do |record|
+        next unless record
         begin
           hash = json? ? json_to_hash(record[@record_log_tag]) : record[@record_log_tag]
           tsv_text = hash_to_table_text(redshift_table_columns, hash, delimiter)
@@ -230,6 +231,7 @@ class RedshiftOutput < BufferedOutput
     JSON.parse(json_text)
   rescue => e
     $log.warn format_log("failed to parse json. "), :error => e.to_s
+    nil
   end
 
   def hash_to_table_text(redshift_table_columns, hash, delimiter)
