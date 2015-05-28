@@ -72,6 +72,7 @@ class RedshiftOutput < BufferedOutput
     options[:s3_endpoint] = @s3_endpoint if @s3_endpoint
     @s3 = AWS::S3.new(options)
     @bucket = @s3.buckets[@s3_bucket]
+    @redshift_connection = RedshiftConnection.new(@db_conf)
   end
 
   def format(tag, time, record)
@@ -118,25 +119,24 @@ class RedshiftOutput < BufferedOutput
     $log.debug format_log("start copying. s3_uri=#{s3_uri}")
 
     begin
-      conn = PG.connect(@db_conf)
-      conn.exec(sql)
+      @redshift_connection.exec(sql)
       $log.info format_log("completed copying to redshift. s3_uri=#{s3_uri}")
     rescue PG::Error => e
       $log.error format_log("failed to copy data into redshift. s3_uri=#{s3_uri}"), :error=>e.to_s
       raise e unless e.to_s =~ IGNORE_REDSHIFT_ERROR_REGEXP
       return false # for debug
-    ensure
-      conn.close rescue nil if conn
     end
     true # for debug
   end
 
   protected
+
   def format_log(message)
     (@log_suffix and not @log_suffix.empty?) ? "#{message} #{@log_suffix}" : message
   end
 
   private
+
   def json?
     @file_type == 'json'
   end
@@ -207,13 +207,10 @@ class RedshiftOutput < BufferedOutput
   def fetch_table_columns
     begin
       columns = nil
-      conn = PG.connect(@db_conf)
-      conn.exec(fetch_columns_sql_with_schema) do |result|
+      @redshift_connection.exec(fetch_columns_sql_with_schema) do |result|
         columns = result.collect{|row| row['column_name']}
       end
       columns
-    ensure
-      conn.close rescue nil if conn
     end
   end
 
@@ -286,7 +283,79 @@ class RedshiftOutput < BufferedOutput
                                   @redshift_tablename
                                 end
   end
+
+  class RedshiftError < StandardError
+  end
+
+  class RedshiftConnection
+    REDSHIFT_CONNECT_TIMEOUT = 10.0  # 10sec
+
+    def initialize(db_conf)
+      @db_conf = db_conf
+      @connection = nil
+    end
+
+    attr_reader :db_conf
+
+    def exec(sql, &block)
+      conn = @connection
+      conn = create_redshift_connection if conn.nil?
+      if block
+        conn.exec(sql) {|result| block.call(result)}
+      else
+        conn.exec(sql)
+      end
+    ensure
+      conn.close if conn && @connection.nil?
+    end
+
+    def connect_start
+      @connection = create_redshift_connection
+    end
+
+    def close
+      @connection.close rescue nil if @connection
+      @connection = nil
+    end
+
+    private
+
+    def create_redshift_connection
+      hostaddr = IPSocket.getaddress(db_conf[:host])
+      db_conf[:hostaddr] = hostaddr
+
+      conn = PG::Connection.connect_start(db_conf)
+      raise RedshiftError.new("Unable to create a new connection.") unless conn
+      if conn.status == PG::CONNECTION_BAD
+        raise RedshiftError.new("Connection failed: %s" % [ conn.error_message ])
+      end
+
+      socket = conn.socket_io
+      poll_status = PG::PGRES_POLLING_WRITING
+      until poll_status == PG::PGRES_POLLING_OK || poll_status == PG::PGRES_POLLING_FAILED
+        case poll_status
+        when PG::PGRES_POLLING_READING
+          IO.select([socket], nil, nil, REDSHIFT_CONNECT_TIMEOUT) or
+            raise RedshiftError.new("Asynchronous connection timed out!(READING)")
+        when PG::PGRES_POLLING_WRITING
+          IO.select(nil, [socket], nil, REDSHIFT_CONNECT_TIMEOUT) or
+            raise RedshiftError.new("Asynchronous connection timed out!(WRITING)")
+        end
+        poll_status = conn.connect_poll
+      end
+
+      unless conn.status == PG::CONNECTION_OK
+        raise Fulent::ConfigError, ("Connect failed: %s" % [conn.error_message.to_s.lines.uniq.join(" ")])
+      end
+
+      conn
+    rescue => e
+      conn.close rescue nil if conn
+      raise e
+    end
+  end
 end
+
 
 
 end

@@ -12,6 +12,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
     require 'pg'
     require 'csv'
     Fluent::Test.setup
+    PG::Error.module_eval { attr_accessor :result}
   end
 
   CONFIG_BASE= %[
@@ -211,53 +212,44 @@ class RedshiftOutputTest < Test::Unit::TestCase
     d_msgpack.run
   end
 
-  class PGConnectionMock
-    def initialize(options = {})
-      @return_keys = options[:return_keys] || ['key_a', 'key_b', 'key_c', 'key_d', 'key_e', 'key_f', 'key_g', 'key_h']
-      @target_schema = options[:schemaname] || nil
-      @target_table = options[:tablename] || 'test_table'
-    end
+  def setup_redshift_connection_mock(options = {})
+    options ||= {}
+    column_names = options[:column_names] || ['key_a', 'key_b', 'key_c', 'key_d', 'key_e', 'key_f', 'key_g', 'key_h']
+    schema_name = options[:schema_name]
+    table_name = options[:table_name] || 'test_table'
+    exec_sql_proc = options[:exec_sql_proc]
 
-    def expected_column_list_query
-      if @target_schema
-        /\Aselect column_name from INFORMATION_SCHEMA.COLUMNS where table_schema = '#{@target_schema}' and table_name = '#{@target_table}'/
+    column_list_query_regex =
+      if schema_name
+        /\Aselect column_name from INFORMATION_SCHEMA.COLUMNS where table_schema = '#{schema_name}' and table_name = '#{table_name}'/
       else
-        /\Aselect column_name from INFORMATION_SCHEMA.COLUMNS where table_name = '#{@target_table}'/
+        /\Aselect column_name from INFORMATION_SCHEMA.COLUMNS where table_name = '#{table_name}'/
       end
-    end
-
-    def expected_copy_query
-      if @target_schema
-        /\Acopy #{@target_schema}.#{@target_table} from/
+    copy_query_regex =
+      if schema_name
+        /\Acopy #{schema_name}.#{table_name} from/
       else
-        /\Acopy #{@target_table} from/
+        /\Acopy #{table_name} from/
       end
-    end
 
-    def exec(sql, &block)
-      if block_given?
-        if sql =~ expected_column_list_query
-          yield @return_keys.collect{|key| {'column_name' => key}}
+    flexmock(Fluent::RedshiftOutput::RedshiftConnection).new_instances do |conn|
+      conn.should_receive(:exec).and_return do |sql, block|
+        if exec_sql_proc
+          exec_sql_proc.call(sql, block)
+        elsif block
+          if sql =~ column_list_query_regex
+            block.call column_names.collect{|key| {'column_name' => key}}
+          else
+            block.call []
+          end
         else
-          yield []
-        end
-      else
-        unless sql =~ expected_copy_query
-          error = PG::Error.new("ERROR:  Load into table '#{@target_table}' failed.  Check 'stl_load_errors' system table for details.")
-          error.result = "ERROR:  Load into table '#{@target_table}' failed.  Check 'stl_load_errors' system table for details."
-          raise error
+          unless sql =~ copy_query_regex
+            error = PG::Error.new("ERROR:  Load into table '#{@target_table}' failed.  Check 'stl_load_errors' system table for details.")
+            error.result = "ERROR:  Load into table '#{@target_table}' failed.  Check 'stl_load_errors' system table for details."
+            raise error
+          end
         end
       end
-    end
-
-    def close
-    end
-  end
-
-  def setup_pg_mock
-    # create mock of PG
-    def PG.connect(dbinfo)
-      return PGConnectionMock.new
     end
   end
 
@@ -305,9 +297,10 @@ class RedshiftOutputTest < Test::Unit::TestCase
     flexmock(Tempfile).new_instances.should_receive(:close!).at_least.once
   end
 
-  def setup_mocks(expected_data)
-    setup_pg_mock
-    setup_s3_mock(expected_data) end
+  def setup_mocks(expected_data, options = {})
+    setup_redshift_connection_mock(options)
+    setup_s3_mock(expected_data)
+  end
 
   def test_write_with_csv
     setup_mocks(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n])
@@ -421,17 +414,8 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_redshift_connection_error
-    def PG.connect(dbinfo)
-      return Class.new do
-        def initialize(return_keys=[]); end
-        def exec(sql)
-          raise PG::Error, "redshift connection error"
-        end
-        def close; end
-      end.new
-    end
-    setup_s3_mock(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n])
-
+    setup_mocks(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n],
+      exec_sql_proc: Proc.new {|sql, block| raise PG::Error, "redshift connection error" })
     d_csv = create_driver
     emit_csv(d_csv)
     assert_raise(PG::Error) {
@@ -440,19 +424,11 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_redshift_load_error
-    PG::Error.module_eval { attr_accessor :result}
-    def PG.connect(dbinfo)
-      return Class.new do
-        def initialize(return_keys=[]); end
-        def exec(sql)
-          error = PG::Error.new("ERROR:  Load into table 'apache_log' failed.  Check 'stl_load_errors' system table for details.")
-          error.result = "ERROR:  Load into table 'apache_log' failed.  Check 'stl_load_errors' system table for details."
-          raise error
-        end
-        def close; end
-      end.new
-    end
-    setup_s3_mock(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n])
+    setup_mocks(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n],
+      exec_sql_proc: Proc.new {|sql, block|
+      msg = "ERROR:  Load into table 'apache_log' failed.  Check 'stl_load_errors' system table for details."
+      raise PG::Error.new(msg).tap{|e| e.result = msg}
+    })
 
     d_csv = create_driver
     emit_csv(d_csv)
@@ -460,17 +436,8 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_redshift_connection_error
-    def PG.connect(dbinfo)
-      return Class.new do
-        def initialize(return_keys=[]); end
-        def exec(sql, &block)
-          error = PG::Error.new("redshift connection error")
-          raise error
-        end
-        def close; end
-      end.new
-    end
-    setup_s3_mock(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n])
+    setup_mocks(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n],
+      exec_sql_proc: Proc.new {|sql, block| raise PG::Error.new("redshift connection error")})
 
     d_json = create_driver(CONFIG_JSON)
     emit_json(d_json)
@@ -480,16 +447,8 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_no_table_on_redshift
-    def PG.connect(dbinfo)
-      return Class.new do
-        def initialize(return_keys=[]); end
-        def exec(sql, &block)
-          yield [] if block_given?
-        end
-        def close; end
-      end.new
-    end
-    setup_s3_mock(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n])
+    setup_mocks(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n],
+                exec_sql_proc: Proc.new {|sql, block| block.call [] if block })
 
     d_json = create_driver(CONFIG_JSON)
     emit_json(d_json)
@@ -497,15 +456,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_failed_to_get_columns
-    def PG.connect(dbinfo)
-      return Class.new do
-        def initialize(return_keys=[]); end
-        def exec(sql, &block)
-        end
-        def close; end
-      end.new
-    end
-    setup_s3_mock("")
+    setup_mocks("", exec_sql_proc: Proc.new {|sql, block| nil})
 
     d_json = create_driver(CONFIG_JSON)
     emit_json(d_json)
@@ -515,10 +466,8 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_fetch_column_with_schema
-    def PG.connect(dbinfo)
-      return PGConnectionMock.new(:schemaname => 'test_schema')
-    end
-    setup_s3_mock(%[val_a\tval_b\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n])
+    setup_mocks(%[val_a\tval_b\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n],
+               schema_name: 'test_schema')
     d_json = create_driver(CONFIG_JSON_WITH_SCHEMA)
     emit_json(d_json)
     assert_equal true, d_json.run
