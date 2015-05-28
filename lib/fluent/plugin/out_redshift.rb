@@ -59,7 +59,8 @@ class RedshiftOutput < BufferedOutput
     }
     @delimiter = determine_delimiter(@file_type) if @delimiter.nil? or @delimiter.empty?
     $log.debug format_log("redshift file_type:#{@file_type} delimiter:'#{@delimiter}'")
-    @copy_sql_template = "copy #{table_name_with_schema} from '%s' CREDENTIALS 'aws_access_key_id=#{@aws_key_id};aws_secret_access_key=%s' delimiter '#{@delimiter}' GZIP ESCAPE #{@redshift_copy_base_options} #{@redshift_copy_options};"
+    @table_name_with_schema = [@redshift_schemaname, @redshift_tablename].compact.join('.')
+    @copy_sql_template = "copy #{@table_name_with_schema} from '%s' CREDENTIALS 'aws_access_key_id=#{@aws_key_id};aws_secret_access_key=%s' delimiter '#{@delimiter}' GZIP ESCAPE #{@redshift_copy_base_options} #{@redshift_copy_options};"
   end
 
   def start
@@ -162,7 +163,7 @@ class RedshiftOutput < BufferedOutput
     if redshift_table_columns == nil
       raise "failed to fetch the redshift table definition."
     elsif redshift_table_columns.empty?
-      $log.warn format_log("no table on redshift. table_name=#{table_name_with_schema}")
+      $log.warn format_log("no table on redshift. table_name=#{@table_name_with_schema}")
       return nil
     end
 
@@ -274,14 +275,6 @@ class RedshiftOutput < BufferedOutput
       i += 1
     end while bucket.objects[s3path].exists?
     s3path
-  end
-
-  def table_name_with_schema
-    @table_name_with_schema ||= if @redshift_schemaname
-                                  "#{@redshift_schemaname}.#{@redshift_tablename}"
-                                else
-                                  @redshift_tablename
-                                end
   end
 
   class RedshiftError < StandardError
