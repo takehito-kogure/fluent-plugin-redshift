@@ -159,7 +159,7 @@ class RedshiftOutput < BufferedOutput
 
   def create_gz_file_from_structured_data(dst_file, chunk, delimiter)
     # fetch the table definition from redshift
-    redshift_table_columns = fetch_table_columns
+    redshift_table_columns = @redshift_connection.fetch_table_columns(@redshift_tablename, @redshift_schemaname)
     if redshift_table_columns == nil
       raise "failed to fetch the redshift table definition."
     elsif redshift_table_columns.empty?
@@ -203,24 +203,6 @@ class RedshiftOutput < BufferedOutput
     else
       raise Fluent::ConfigError, "Invalid file_type:#{file_type}."
     end
-  end
-
-  def fetch_table_columns
-    begin
-      columns = nil
-      @redshift_connection.exec(fetch_columns_sql_with_schema) do |result|
-        columns = result.collect{|row| row['column_name']}
-      end
-      columns
-    end
-  end
-
-  def fetch_columns_sql_with_schema
-    @fetch_columns_sql ||= if @redshift_schemaname
-                             "select column_name from INFORMATION_SCHEMA.COLUMNS where table_schema = '#{@redshift_schemaname}' and table_name = '#{@redshift_tablename}' order by ordinal_position;"
-                           else
-                             "select column_name from INFORMATION_SCHEMA.COLUMNS where table_name = '#{@redshift_tablename}' order by ordinal_position;"
-                           end
   end
 
   def json_to_hash(json_text)
@@ -290,6 +272,14 @@ class RedshiftOutput < BufferedOutput
 
     attr_reader :db_conf
 
+    def fetch_table_columns(table_name, schema_name)
+      columns = nil
+      exec(fetch_columns_sql(table_name, schema_name)) do |result|
+        columns = result.collect{|row| row['column_name']}
+      end
+      columns
+    end
+
     def exec(sql, &block)
       conn = @connection
       conn = create_redshift_connection if conn.nil?
@@ -345,6 +335,13 @@ class RedshiftOutput < BufferedOutput
     rescue => e
       conn.close rescue nil if conn
       raise e
+    end
+
+    def fetch_columns_sql(table_name, schema_name = nil)
+      sql = "select column_name from INFORMATION_SCHEMA.COLUMNS where table_name = '#{table_name}'"
+      sql << " and table_schema = '#{schema_name}'" if schema_name
+      sql << " order by ordinal_position;"
+      sql
     end
   end
 end

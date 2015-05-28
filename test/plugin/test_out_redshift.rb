@@ -221,7 +221,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
 
     column_list_query_regex =
       if schema_name
-        /\Aselect column_name from INFORMATION_SCHEMA.COLUMNS where table_schema = '#{schema_name}' and table_name = '#{table_name}'/
+        /\Aselect column_name from INFORMATION_SCHEMA.COLUMNS where table_name = '#{table_name}' and table_schema = '#{schema_name}'/
       else
         /\Aselect column_name from INFORMATION_SCHEMA.COLUMNS where table_name = '#{table_name}'/
       end
