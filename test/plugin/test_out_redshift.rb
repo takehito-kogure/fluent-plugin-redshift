@@ -246,7 +246,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
           unless sql =~ copy_query_regex
             error = PG::Error.new("ERROR:  Load into table '#{@target_table}' failed.  Check 'stl_load_errors' system table for details.")
             error.result = "ERROR:  Load into table '#{@target_table}' failed.  Check 'stl_load_errors' system table for details."
-            raise error
+            raise Fluent::RedshiftOutput::RedshiftError.new(error)
           end
         end
       end
@@ -415,10 +415,10 @@ class RedshiftOutputTest < Test::Unit::TestCase
 
   def test_write_redshift_connection_error
     setup_mocks(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n],
-      exec_sql_proc: Proc.new {|sql, block| raise PG::Error, "redshift connection error" })
+      exec_sql_proc: Proc.new {|sql, block| raise Fluent::RedshiftOutput::RedshiftError, "redshift connection error" })
     d_csv = create_driver
     emit_csv(d_csv)
-    assert_raise(PG::Error) {
+    assert_raise(Fluent::RedshiftOutput::RedshiftError) {
       d_csv.run
     }
   end
@@ -427,7 +427,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
     setup_mocks(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n],
       exec_sql_proc: Proc.new {|sql, block|
       msg = "ERROR:  Load into table 'apache_log' failed.  Check 'stl_load_errors' system table for details."
-      raise PG::Error.new(msg).tap{|e| e.result = msg}
+      raise Fluent::RedshiftOutput::RedshiftError.new(msg)
     })
 
     d_csv = create_driver
@@ -437,11 +437,11 @@ class RedshiftOutputTest < Test::Unit::TestCase
 
   def test_write_with_json_redshift_connection_error
     setup_mocks(%[val_a,val_b,val_c,val_d\nval_e,val_f,val_g,val_h\n],
-      exec_sql_proc: Proc.new {|sql, block| raise PG::Error.new("redshift connection error")})
+      exec_sql_proc: Proc.new {|sql, block| raise Fluent::RedshiftOutput::RedshiftError.new("redshift connection error")})
 
     d_json = create_driver(CONFIG_JSON)
     emit_json(d_json)
-    assert_raise(PG::Error) {
+    assert_raise(Fluent::RedshiftOutput::RedshiftError) {
       d_json.run
     }
   end

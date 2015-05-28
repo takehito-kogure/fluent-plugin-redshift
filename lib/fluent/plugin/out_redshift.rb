@@ -122,7 +122,7 @@ class RedshiftOutput < BufferedOutput
     begin
       @redshift_connection.exec(sql)
       $log.info format_log("completed copying to redshift. s3_uri=#{s3_uri}")
-    rescue PG::Error => e
+    rescue RedshiftError => e
       $log.error format_log("failed to copy data into redshift. s3_uri=#{s3_uri}"), :error=>e.to_s
       raise e unless e.to_s =~ IGNORE_REDSHIFT_ERROR_REGEXP
       return false # for debug
@@ -260,6 +260,18 @@ class RedshiftOutput < BufferedOutput
   end
 
   class RedshiftError < StandardError
+    def initialize(msg)
+      case msg
+      when PG::Error
+        @pg_error = msg
+        super(msg.to_s)
+        set_backtrace(msg.backtrace)
+      else
+        super
+      end
+    end
+
+    attr_accessor :pg_error
   end
 
   class RedshiftConnection
@@ -288,6 +300,8 @@ class RedshiftOutput < BufferedOutput
       else
         conn.exec(sql)
       end
+    rescue PG::Error => e
+      raise RedshiftError.new(e)
     ensure
       conn.close if conn && @connection.nil?
     end
@@ -328,12 +342,13 @@ class RedshiftOutput < BufferedOutput
       end
 
       unless conn.status == PG::CONNECTION_OK
-        raise Fulent::ConfigError, ("Connect failed: %s" % [conn.error_message.to_s.lines.uniq.join(" ")])
+        raise RedshiftError, ("Connect failed: %s" % [conn.error_message.to_s.lines.uniq.join(" ")])
       end
 
       conn
     rescue => e
       conn.close rescue nil if conn
+      raise RedshiftError.new(e) if e.kind_of?(PG::Error)
       raise e
     end
 
