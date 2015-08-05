@@ -4,6 +4,8 @@ module Fluent
 class RedshiftOutput < BufferedOutput
   Fluent::Plugin.register_output('redshift', self)
 
+  NULL_CHAR_FOR_COPY = "\\N"
+
   # ignore load table error. (invalid data format)
   IGNORE_REDSHIFT_ERROR_REGEXP = /^ERROR:  Load into table '[^']+' failed\./
 
@@ -184,12 +186,7 @@ class RedshiftOutput < BufferedOutput
           tsv_text = hash_to_table_text(redshift_table_columns, hash, delimiter)
           gzw.write(tsv_text) if tsv_text and not tsv_text.empty?
         rescue => e
-          if json?
-            $log.error format_log("failed to create table text from json. text=(#{record[@record_log_tag]})"), :error=>e.to_s
-          else
-            $log.error format_log("failed to create table text from msgpack. text=(#{record[@record_log_tag]})"), :error=>e.to_s
-          end
-
+          $log.error format_log("failed to create table text from #{@file_type}. text=(#{record[@record_log_tag]})"), :error=>e.to_s
           $log.error_backtrace
         end
       end
@@ -224,18 +221,9 @@ class RedshiftOutput < BufferedOutput
     return "" unless hash
 
     # extract values from hash
-    val_list = redshift_table_columns.collect do |cn|
-      val = hash[cn]
-      val = JSON.generate(val) if val.kind_of?(Hash) or val.kind_of?(Array)
+    val_list = redshift_table_columns.collect {|cn| hash[cn]}
 
-      if val.to_s.empty?
-        nil
-      else
-        val.to_s
-      end
-    end
-
-    if val_list.all?{|v| v.nil? or v.empty?}
+    if val_list.all?{|v| v.nil?}
       $log.warn format_log("no data match for table columns on redshift. data=#{hash} table_columns=#{redshift_table_columns}")
       return ""
     end
@@ -244,14 +232,22 @@ class RedshiftOutput < BufferedOutput
   end
 
   def generate_line_with_delimiter(val_list, delimiter)
-    val_list = val_list.collect do |val|
-      if val.nil? or val.empty?
-        ""
+    val_list.collect do |val|
+      case val
+      when nil
+        NULL_CHAR_FOR_COPY
+      when ''
+        ''
+      when Hash, Array
+        escape_text_for_copy(JSON.generate(val))
       else
-        val.gsub(/\\/, "\\\\\\").gsub(/\t/, "\\\t").gsub(/\n/, "\\\n") # escape tab, newline and backslash
+        escape_text_for_copy(val.to_s)
       end
-    end
-    val_list.join(delimiter) + "\n"
+    end.join(delimiter) + "\n"
+  end
+
+  def escape_text_for_copy(val)
+    val.gsub(/\\|\t|\n/, {"\\" => "\\\\", "\t" => "\\\t", "\n" => "\\\n"})  # escape tab, newline and backslash
   end
 
   def create_s3path(bucket, path)
