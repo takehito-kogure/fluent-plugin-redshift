@@ -186,12 +186,7 @@ class RedshiftOutput < BufferedOutput
           tsv_text = hash_to_table_text(redshift_table_columns, hash, delimiter)
           gzw.write(tsv_text) if tsv_text and not tsv_text.empty?
         rescue => e
-          if json?
-            $log.error format_log("failed to create table text from json. text=(#{record[@record_log_tag]})"), :error=>e.to_s
-          else
-            $log.error format_log("failed to create table text from msgpack. text=(#{record[@record_log_tag]})"), :error=>e.to_s
-          end
-
+          $log.error format_log("failed to create table text from #{@file_type}. text=(#{record[@record_log_tag]})"), :error=>e.to_s
           $log.error_backtrace
         end
       end
