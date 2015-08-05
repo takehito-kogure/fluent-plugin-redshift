@@ -315,7 +315,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json
-    setup_mocks(%[val_a\tval_b\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n])
+    setup_mocks(%[val_a\tval_b\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n])
     setup_tempfile_mock_to_be_closed
     d_json = create_driver(CONFIG_JSON)
     emit_json(d_json)
@@ -323,7 +323,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_hash_value
-    setup_mocks("val_a\t{\"foo\":\"var\"}\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n")
+    setup_mocks("val_a\t{\"foo\":\"var\"}\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n")
     d_json = create_driver(CONFIG_JSON)
     d_json.emit({"log" => %[{"key_a" : "val_a", "key_b" : {"foo" : "var"}}]} , DEFAULT_TIME)
     d_json.emit(RECORD_JSON_B, DEFAULT_TIME)
@@ -331,7 +331,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_array_value
-    setup_mocks("val_a\t[\"foo\",\"var\"]\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n")
+    setup_mocks("val_a\t[\"foo\",\"var\"]\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n")
     d_json = create_driver(CONFIG_JSON)
     d_json.emit({"log" => %[{"key_a" : "val_a", "key_b" : ["foo", "var"]}]} , DEFAULT_TIME)
     d_json.emit(RECORD_JSON_B, DEFAULT_TIME)
@@ -339,10 +339,17 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_including_tab_newline_quote
-    setup_mocks("val_a_with_\\\t_tab_\\\n_newline\tval_b_with_\\\\_quote\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n")
+    setup_mocks("val_a_with_\\\t_tab_\\\n_newline\tval_b_with_\\\\_quote\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n")
     d_json = create_driver(CONFIG_JSON)
     d_json.emit({"log" => %[{"key_a" : "val_a_with_\\t_tab_\\n_newline", "key_b" : "val_b_with_\\\\_quote"}]} , DEFAULT_TIME)
     d_json.emit(RECORD_JSON_B, DEFAULT_TIME)
+    assert_equal true, d_json.run
+  end
+
+  def test_write_with_json_empty_text_value
+    setup_mocks(%[val_a\t\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n])
+    d_json = create_driver(CONFIG_JSON)
+    d_json.emit({"log" => %[{"key_a" : "val_a", "key_b" : ""}]} , DEFAULT_TIME)
     assert_equal true, d_json.run
   end
 
@@ -355,7 +362,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_invalid_one_line
-    setup_mocks(%[\t\tval_c\tval_d\t\t\t\t\n])
+    setup_mocks(%[\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n])
     d_json = create_driver(CONFIG_JSON)
     d_json.emit({"log" => %[}}]}, DEFAULT_TIME)
     d_json.emit(RECORD_JSON_B, DEFAULT_TIME)
@@ -363,7 +370,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_no_available_data
-    setup_mocks(%[val_a\tval_b\t\t\t\t\t\t\n])
+    setup_mocks(%[val_a\tval_b\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n])
     d_json = create_driver(CONFIG_JSON)
     d_json.emit(RECORD_JSON_A, DEFAULT_TIME)
     d_json.emit({"log" => %[{"key_o" : "val_o", "key_p" : "val_p"}]}, DEFAULT_TIME)
@@ -371,14 +378,14 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_msgpack
-    setup_mocks(%[val_a\tval_b\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n])
+    setup_mocks(%[val_a\tval_b\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n])
     d_msgpack = create_driver(CONFIG_MSGPACK)
     emit_msgpack(d_msgpack)
     assert_equal true, d_msgpack.run
   end
 
   def test_write_with_msgpack_hash_value
-    setup_mocks("val_a\t{\"foo\":\"var\"}\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n")
+    setup_mocks("val_a\t{\"foo\":\"var\"}\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n")
     d_msgpack = create_driver(CONFIG_MSGPACK)
     d_msgpack.emit({"key_a" => "val_a", "key_b" => {"foo" => "var"}} , DEFAULT_TIME)
     d_msgpack.emit(RECORD_MSGPACK_B, DEFAULT_TIME)
@@ -386,7 +393,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_msgpack_array_value
-    setup_mocks("val_a\t[\"foo\",\"var\"]\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n")
+    setup_mocks("val_a\t[\"foo\",\"var\"]\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n")
     d_msgpack = create_driver(CONFIG_MSGPACK)
     d_msgpack.emit({"key_a" => "val_a", "key_b" => ["foo", "var"]} , DEFAULT_TIME)
     d_msgpack.emit(RECORD_MSGPACK_B, DEFAULT_TIME)
@@ -394,7 +401,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_msgpack_including_tab_newline_quote
-    setup_mocks("val_a_with_\\\t_tab_\\\n_newline\tval_b_with_\\\\_quote\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n")
+    setup_mocks("val_a_with_\\\t_tab_\\\n_newline\tval_b_with_\\\\_quote\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n")
     d_msgpack = create_driver(CONFIG_MSGPACK)
     d_msgpack.emit({"key_a" => "val_a_with_\t_tab_\n_newline", "key_b" => "val_b_with_\\_quote"} , DEFAULT_TIME)
     d_msgpack.emit(RECORD_MSGPACK_B, DEFAULT_TIME)
@@ -410,7 +417,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_msgpack_no_available_data
-    setup_mocks(%[val_a\tval_b\t\t\t\t\t\t\n])
+    setup_mocks(%[val_a\tval_b\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n])
     d_msgpack = create_driver(CONFIG_MSGPACK)
     d_msgpack.emit(RECORD_MSGPACK_A, DEFAULT_TIME)
     d_msgpack.emit({"key_o" => "val_o", "key_p" => "val_p"}, DEFAULT_TIME)
@@ -470,7 +477,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
   end
 
   def test_write_with_json_fetch_column_with_schema
-    setup_mocks(%[val_a\tval_b\t\t\t\t\t\t\n\t\tval_c\tval_d\t\t\t\t\n],
+    setup_mocks(%[val_a\tval_b\t\\N\t\\N\t\\N\t\\N\t\\N\t\\N\n\\N\t\\N\tval_c\tval_d\t\\N\t\\N\t\\N\t\\N\n],
                schema_name: 'test_schema')
     d_json = create_driver(CONFIG_JSON_WITH_SCHEMA)
     emit_json(d_json)
