@@ -252,7 +252,7 @@ class RedshiftOutput < BufferedOutput
   end
 
   def escape_text_for_copy(val)
-    val.gsub(/\\/, "\\\\\\").gsub(/\t/, "\\\t").gsub(/\n/, "\\\n") # escape tab, newline and backslash
+    val.gsub(/\\|\t|\n/, {"\\" => "\\\\", "\t" => "\\\t", "\n" => "\\\n"})  # escape tab, newline and backslash
   end
 
   def create_s3path(bucket, path)
