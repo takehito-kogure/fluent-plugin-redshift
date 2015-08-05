@@ -41,6 +41,8 @@ class RedshiftOutput < BufferedOutput
   # file format
   config_param :file_type, :string, :default => nil  # json, tsv, csv, msgpack
   config_param :delimiter, :string, :default => nil
+  # maintenance
+  config_param :maintenance_file_path, :string, :default => nil
   # for debug
   config_param :log_suffix, :string, :default => ''
 
@@ -61,6 +63,7 @@ class RedshiftOutput < BufferedOutput
     $log.debug format_log("redshift file_type:#{@file_type} delimiter:'#{@delimiter}'")
     @table_name_with_schema = [@redshift_schemaname, @redshift_tablename].compact.join('.')
     @copy_sql_template = "copy #{@table_name_with_schema} from '%s' CREDENTIALS 'aws_access_key_id=#{@aws_key_id};aws_secret_access_key=%s' delimiter '#{@delimiter}' GZIP ESCAPE #{@redshift_copy_base_options} #{@redshift_copy_options};"
+    @maintenance_monitor = MaintenanceMonitor.new(@maintenance_file_path)
   end
 
   def start
@@ -88,6 +91,7 @@ class RedshiftOutput < BufferedOutput
 
   def write(chunk)
     $log.debug format_log("start creating gz.")
+    @maintenance_monitor.check_maintenance!
 
     # create a gz file
     tmp = Tempfile.new("s3-")
@@ -361,8 +365,26 @@ class RedshiftOutput < BufferedOutput
       sql
     end
   end
-end
 
+  class MaintenanceError < StandardError
+  end
+
+  class MaintenanceMonitor
+    def initialize(maintenance_file_path)
+      @file_path = maintenance_file_path
+    end
+
+    def in_maintenance?
+      !!(@file_path && File.exists?(@file_path))
+    end
+
+    def check_maintenance!
+      if in_maintenance?
+        raise MaintenanceError.new("Service is in maintenance mode - maintenance_file_path:#{@file_path}")
+      end
+    end
+  end
+end
 
 
 end
