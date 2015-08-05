@@ -15,6 +15,8 @@ class RedshiftOutputTest < Test::Unit::TestCase
     PG::Error.module_eval { attr_accessor :result}
   end
 
+  MAINTENANCE_FILE_PATH_FOR_TEST = "/tmp/fluentd_redshift_plugin_test_maintenance"
+
   CONFIG_BASE= %[
     aws_key_id test_key_id
     aws_sec_key test_sec_key
@@ -28,6 +30,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
     buffer_type memory
     utc
     log_suffix id:5 host:localhost
+    maintenance_file_path #{MAINTENANCE_FILE_PATH_FOR_TEST}
   ]
   CONFIG_CSV= %[
     #{CONFIG_BASE}
@@ -107,6 +110,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
     assert_equal "csv", d.instance.file_type
     assert_equal ",", d.instance.delimiter
     assert_equal true, d.instance.utc
+    assert_equal MAINTENANCE_FILE_PATH_FOR_TEST, d.instance.maintenance_file_path
   end
   def test_configure_with_schemaname
     d = create_driver(CONFIG_JSON_WITH_SCHEMA)
@@ -471,5 +475,16 @@ class RedshiftOutputTest < Test::Unit::TestCase
     d_json = create_driver(CONFIG_JSON_WITH_SCHEMA)
     emit_json(d_json)
     assert_equal true, d_json.run
+  end
+
+  def test_maintenance_mode
+    flexmock(File).should_receive(:exists?).with(MAINTENANCE_FILE_PATH_FOR_TEST).and_return(true)
+
+    d_json = create_driver(CONFIG_JSON)
+    emit_json(d_json)
+    assert_raise(Fluent::RedshiftOutput::MaintenanceError,
+                 "Service is in maintenance mode - maintenance_file_path:#{MAINTENANCE_FILE_PATH_FOR_TEST}") {
+      d_json.run
+    }
   end
 end

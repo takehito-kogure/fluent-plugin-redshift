@@ -39,6 +39,9 @@ Format:
         buffer_path /var/log/fluent/redshift
         flush_interval 15m
         buffer_chunk_limit 1g
+
+        # maintenance
+        maintenance_file_path /path/to/maintenance_file
     </match>
 
 Example (watch and upload json formatted apache log):
@@ -76,6 +79,9 @@ Example (watch and upload json formatted apache log):
         buffer_path /var/log/fluent/redshift
         flush_interval 15m
         buffer_chunk_limit 1g
+
+        # maintenance
+        maintenance_file_path /tmp/fluentd_redshift_maintenance
     </match>
 
 + `type` (required) : The value must be `redshift`.
@@ -128,6 +134,8 @@ Example (watch and upload json formatted apache log):
 + `buffer_chunk_limit` : limit buffer size to chunk.
 
 + `utc` : utc time zone. This parameter affects `timestamp_key_format`.
+
++ `maintenance_file_path` : path of maintenance file. plugin skip processing and keep retrying during a file existing in this file path. To avoid data loss due to too many retries caused by long mainenance, setting `retry_limit` and `retry_wait` is recommended.
 
 ## Logging examples
 ```ruby
