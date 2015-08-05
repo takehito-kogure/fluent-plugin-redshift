@@ -123,9 +123,11 @@ class RedshiftOutput < BufferedOutput
       @redshift_connection.exec(sql)
       $log.info format_log("completed copying to redshift. s3_uri=#{s3_uri}")
     rescue RedshiftError => e
-      $log.error format_log("failed to copy data into redshift. s3_uri=#{s3_uri}"), :error=>e.to_s
-      raise e unless e.to_s =~ IGNORE_REDSHIFT_ERROR_REGEXP
-      return false # for debug
+      if e.to_s =~ IGNORE_REDSHIFT_ERROR_REGEXP
+        $log.error format_log("failed to copy data into redshift due to load error. s3_uri=#{s3_uri}"), :error=>e.to_s
+        return false # for debug
+      end
+      raise e
     end
     true # for debug
   end
