@@ -22,8 +22,8 @@ class RedshiftOutput < BufferedOutput
 
   config_param :record_log_tag, :string, :default => 'log'
   # s3
-  config_param :aws_key_id, :string
-  config_param :aws_sec_key, :string
+  config_param :aws_key_id, :string, :secret => true
+  config_param :aws_sec_key, :string, :secret => true
   config_param :s3_bucket, :string
   config_param :s3_endpoint, :string, :default => nil
   config_param :path, :string, :default => ""
@@ -34,7 +34,7 @@ class RedshiftOutput < BufferedOutput
   config_param :redshift_port, :integer, :default => 5439
   config_param :redshift_dbname, :string
   config_param :redshift_user, :string
-  config_param :redshift_password, :string
+  config_param :redshift_password, :string, :secret => true
   config_param :redshift_tablename, :string
   config_param :redshift_schemaname, :string, :default => nil
   config_param :redshift_copy_base_options, :string , :default => "FILLRECORD ACCEPTANYDATE TRUNCATECOLUMNS"
