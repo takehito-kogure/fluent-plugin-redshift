@@ -41,6 +41,9 @@ class RedshiftOutput < BufferedOutput
   config_param :redshift_copy_base_options, :string , :default => "FILLRECORD ACCEPTANYDATE TRUNCATECOLUMNS"
   config_param :redshift_copy_options, :string , :default => nil
   config_param :redshift_connect_timeout, :integer, :default => 10
+  config_param :redshift_use_columns, :string, :default => nil
+  config_param :redshift_explicit_ids, :bool :default => true
+
   # file format
   config_param :file_type, :string, :default => nil  # json, tsv, csv, msgpack
   config_param :delimiter, :string, :default => nil
