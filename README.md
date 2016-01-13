@@ -23,6 +23,7 @@ Format:
         s3_endpoint YOUR_S3_BUCKET_END_POINT
         path YOUR_S3_PATH
         timestamp_key_format year=%Y/month=%m/day=%d/hour=%H/%Y%m%d-%H%M
+        s3_server_side_encryption S3_SERVER_SIDE_ENCRYPTION
 
         # redshift
         redshift_host YOUR_AMAZON_REDSHIFT_CLUSTER_END_POINT
@@ -64,6 +65,7 @@ Example (watch and upload json formatted apache log):
         s3_endpoint s3.amazonaws.com
         path path/on/s3/apache_json_log/
         timestamp_key_format year=%Y/month=%m/day=%d/hour=%H/%Y%m%d-%H%M
+        s3_server_side_encryption aes256
 
         # redshift
         redshift_host xxx-yyy-zzz.xxxxxxxxxx.us-east-1.redshift.amazonaws.com
@@ -104,6 +106,8 @@ Example (watch and upload json formatted apache log):
   hapyrus-example/apache_json_log/year=2013/month=03/day=05/hour=12/20130305_1215_00.gz
   hapyrus-example/apache_json_log/year=2013/month=03/day=05/hour=12/20130305_1230_00.gz
 </pre>
+
++ `s3_server_side_encryption` : S3 Server-Side Encryption (Only aes256 is supported)
 
 + `redshift_host` (required) : the end point(or hostname) of your Amazon Redshift cluster.
 
