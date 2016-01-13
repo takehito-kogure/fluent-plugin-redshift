@@ -29,7 +29,7 @@ class RedshiftOutput < BufferedOutput
   config_param :path, :string, :default => ""
   config_param :timestamp_key_format, :string, :default => 'year=%Y/month=%m/day=%d/hour=%H/%Y%m%d-%H%M'
   config_param :utc, :bool, :default => false
-  config_param :s3_server_side_encryption, :string, :default => nil
+  config_param :s3_server_side_encryption, :string, :default => nil  # only 'aes256' is supported
   # redshift
   config_param :redshift_host, :string
   config_param :redshift_port, :integer, :default => 5439
