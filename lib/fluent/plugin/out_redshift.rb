@@ -29,6 +29,7 @@ class RedshiftOutput < BufferedOutput
   config_param :path, :string, :default => ""
   config_param :timestamp_key_format, :string, :default => 'year=%Y/month=%m/day=%d/hour=%H/%Y%m%d-%H%M'
   config_param :utc, :bool, :default => false
+  config_param :s3_server_side_encryption, :string, :default => nil
   # redshift
   config_param :redshift_host, :string
   config_param :redshift_port, :integer, :default => 5439
@@ -66,6 +67,7 @@ class RedshiftOutput < BufferedOutput
     @table_name_with_schema = [@redshift_schemaname, @redshift_tablename].compact.join('.')
     @copy_sql_template = "copy #{@table_name_with_schema} from '%s' CREDENTIALS 'aws_access_key_id=#{@aws_key_id};aws_secret_access_key=%s' delimiter '#{@delimiter}' GZIP ESCAPE #{@redshift_copy_base_options} #{@redshift_copy_options};"
     @maintenance_monitor = MaintenanceMonitor.new(@maintenance_file_path)
+    AWS.config(:s3_server_side_encryption => @s3_server_side_encryption.to_sym) unless @s3_server_side_encryption.nil?
   end
 
   def start
