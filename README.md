@@ -33,6 +33,7 @@ Format:
         redshift_password YOUR_AMAZON_REDSHIFT_CLUSTER_PASSWORD
         redshift_schemaname YOUR_AMAZON_REDSHIFT_CLUSTER_TARGET_SCHEMA_NAME
         redshift_tablename YOUR_AMAZON_REDSHIFT_CLUSTER_TARGET_TABLE_NAME
+        redshift_copy_columns COLMUNS_FOR_COPY
         file_type [tsv|csv|json|msgpack]
 
         # buffer
@@ -124,6 +125,8 @@ Example (watch and upload json formatted apache log):
 + `redshift_schemaname` : schema name to store data. By default, this option is not set and find table without schema as your own search_path.
 
 + `redshift_connect_timeout` : maximum time to wait for connection to succeed.
+
++ `redshift_copy_columns` : columns for copying. Value needs to be comma-separated like `id,name,age`
 
 + `file_type` : file format of the source data.  `csv`, `tsv`, `msgpack` or `json` are available.
 
