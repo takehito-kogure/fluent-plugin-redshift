@@ -111,6 +111,7 @@ class RedshiftOutputTest < Test::Unit::TestCase
     assert_equal ",", d.instance.delimiter
     assert_equal true, d.instance.utc
     assert_equal MAINTENANCE_FILE_PATH_FOR_TEST, d.instance.maintenance_file_path
+    assert_equal nil, d.instance.redshift_copy_columns
   end
   def test_configure_with_schemaname
     d = create_driver(CONFIG_JSON_WITH_SCHEMA)
@@ -167,6 +168,11 @@ class RedshiftOutputTest < Test::Unit::TestCase
   def test_configure_no_log_suffix
     d = create_driver(CONFIG_CSV.gsub(/ *log_suffix *.+$/, ''))
     assert_equal "", d.instance.log_suffix
+  end
+  def test_configure_redshift_copy_columns
+    d = create_driver(CONFIG_CSV + "\n  redshift_copy_columns id,name, age created_at")
+    assert_equal %w(id name age created_at), d.instance.redshift_copy_columns
+    assert_match /^copy test_table\(id,name,age,created_at\) from/, d.instance.instance_variable_get("@copy_sql_template")
   end
 
   def emit_csv(d)
@@ -231,9 +237,9 @@ class RedshiftOutputTest < Test::Unit::TestCase
       end
     copy_query_regex =
       if schema_name
-        /\Acopy #{schema_name}.#{table_name} from/
+        /\Acopy #{schema_name}.#{table_name}(\(.+\))? from/
       else
-        /\Acopy #{table_name} from/
+        /\Acopy #{table_name}(\(.+\))? from/
       end
 
     flexmock(Fluent::RedshiftOutput::RedshiftConnection).new_instances do |conn|
@@ -472,6 +478,23 @@ class RedshiftOutputTest < Test::Unit::TestCase
     d_json = create_driver(CONFIG_JSON)
     emit_json(d_json)
     assert_raise(RuntimeError, "failed to fetch the redshift table definition.") {
+      d_json.run
+    }
+  end
+
+  def test_write_with_json_with_copy_columns
+    setup_mocks(%[val_a\tval_b\n])
+    setup_tempfile_mock_to_be_closed
+    d_json = create_driver(CONFIG_JSON + "\n  redshift_copy_columns key_a,key_b")
+    emit_json(d_json)
+    assert_equal true, d_json.run
+  end
+
+  def test_write_with_json_uknown_columns_in_copy_columns
+    setup_mocks("")
+    d_json = create_driver(CONFIG_JSON + "\n  redshift_copy_columns key_a,key_z")
+    emit_json(d_json)
+    assert_raise(Fluent::ConfigError, "missing columns included in redshift_copy_columns - missing columns:\"key_z\"") {
       d_json.run
     }
   end

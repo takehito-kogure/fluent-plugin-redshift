@@ -41,8 +41,7 @@ class RedshiftOutput < BufferedOutput
   config_param :redshift_copy_base_options, :string , :default => "FILLRECORD ACCEPTANYDATE TRUNCATECOLUMNS"
   config_param :redshift_copy_options, :string , :default => nil
   config_param :redshift_connect_timeout, :integer, :default => 10
-  config_param :redshift_use_columns, :string, :default => nil
-  config_param :redshift_explicit_ids, :bool :default => true
+  config_param :redshift_copy_columns, :string, :default => nil  # comma separated format, ex) id,name,age
 
   # file format
   config_param :file_type, :string, :default => nil  # json, tsv, csv, msgpack
@@ -68,7 +67,12 @@ class RedshiftOutput < BufferedOutput
     @delimiter = determine_delimiter(@file_type) if @delimiter.nil? or @delimiter.empty?
     $log.debug format_log("redshift file_type:#{@file_type} delimiter:'#{@delimiter}'")
     @table_name_with_schema = [@redshift_schemaname, @redshift_tablename].compact.join('.')
-    @copy_sql_template = "copy #{@table_name_with_schema} from '%s' CREDENTIALS 'aws_access_key_id=#{@aws_key_id};aws_secret_access_key=%s' delimiter '#{@delimiter}' GZIP ESCAPE #{@redshift_copy_base_options} #{@redshift_copy_options};"
+    @redshift_copy_columns = if !@redshift_copy_columns.to_s.empty?
+                               @redshift_copy_columns.split(/[,\s]+/)
+                             else
+                               nil
+                             end
+    @copy_sql_template = build_redshift_copy_sql_template
     @maintenance_monitor = MaintenanceMonitor.new(@maintenance_file_path)
     AWS.config(:s3_server_side_encryption => @s3_server_side_encryption.to_sym) unless @s3_server_side_encryption.nil?
   end
@@ -151,6 +155,16 @@ class RedshiftOutput < BufferedOutput
 
   private
 
+  def build_redshift_copy_sql_template
+    copy_columns = if @redshift_copy_columns
+                     "(#{@redshift_copy_columns.join(",")})"
+                   else
+                     ''
+                   end
+   "copy #{@table_name_with_schema}#{copy_columns} from '%s' CREDENTIALS 'aws_access_key_id=#{@aws_key_id};aws_secret_access_key=%s' delimiter '#{@delimiter}' GZIP ESCAPE #{@redshift_copy_base_options} #{@redshift_copy_options};"
+  end
+
+
   def json?
     @file_type == 'json'
   end
@@ -178,6 +192,14 @@ class RedshiftOutput < BufferedOutput
     elsif redshift_table_columns.empty?
       $log.warn format_log("no table on redshift. table_name=#{@table_name_with_schema}")
       return nil
+    end
+
+    if @redshift_copy_columns
+      unknown_colmns = @redshift_copy_columns - redshift_table_columns
+      unless unknown_colmns.empty?
+        raise Fluent::ConfigError, "missing columns included in redshift_copy_columns - missing columns:\"#{unknown_colmns.join(',')}\""
+      end
+      redshift_table_columns = @redshift_copy_columns
     end
 
     # convert json to tsv format text
