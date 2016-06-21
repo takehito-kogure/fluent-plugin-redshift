@@ -34,6 +34,7 @@ Format:
         redshift_schemaname YOUR_AMAZON_REDSHIFT_CLUSTER_TARGET_SCHEMA_NAME
         redshift_tablename YOUR_AMAZON_REDSHIFT_CLUSTER_TARGET_TABLE_NAME
         redshift_copy_columns COLMUNS_FOR_COPY
+        redshift_arn ARN_FOR_REDSHIFT
         file_type [tsv|csv|json|msgpack]
 
         # buffer
@@ -75,6 +76,7 @@ Example (watch and upload json formatted apache log):
         redshift_user fluent
         redshift_password fluent-password
         redshift_tablename apache_log
+        redshift_arn arn:aws:iam::NNNNNNNNNNNN:role/XXX-YYY-ZZZ
         file_type json
 
         # buffer

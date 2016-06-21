@@ -4,11 +4,11 @@ $:.push File.expand_path('../lib', __FILE__)
 Gem::Specification.new do |gem|
   gem.name          = "fluent-plugin-redshift"
   gem.version       = File.read("VERSION").strip
-  gem.authors       = ["Masashi Miyazaki"]
-  gem.email         = ["mmasashi@gmail.com"]
+  gem.authors       = ["Takehito Kogure (original by)Masashi Miyazaki"]
+  gem.email         = ["takehito.kogure+github@hde.co.jp"]
   gem.description   = %q{Amazon Redshift output plugin for Fluentd}
   gem.summary       = gem.description
-  gem.homepage      = "https://github.com/hapyrus/fluent-plugin-redshift"
+  gem.homepage      = "https://github.com/takehito-kogure/fluent-plugin-redshift"
   gem.has_rdoc      = false
 
   gem.files         = `git ls-files`.split($/)
@@ -17,8 +17,10 @@ Gem::Specification.new do |gem|
   gem.require_paths = ["lib"]
 
   gem.add_dependency "fluentd", [">= 0.10.0", "< 2"]
-  gem.add_dependency "aws-sdk-v1", ">= 1.6.3"
+  gem.add_dependency "aws-sdk-resources"
   gem.add_dependency "pg", "~> 0.17.0"
+  gem.add_dependency "json"
+  gem.add_dependency "csv"
   gem.add_development_dependency "rake"
   gem.add_development_dependency "simplecov", ">= 0.5.4"
   gem.add_development_dependency "flexmock", ">= 1.3.1"
